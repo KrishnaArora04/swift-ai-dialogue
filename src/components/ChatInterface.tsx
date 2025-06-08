@@ -6,6 +6,7 @@ import { Send, Image } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { MessageBubble } from "@/components/MessageBubble";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   id: string;
@@ -23,7 +24,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      content: "Hello! I'm your AI assistant. I can help you with text generation and create images for you. What would you like to chat about?",
+      content: "Hello! I'm your AI assistant powered by Google Gemini. I can help you with text generation and create images for you. What would you like to chat about?",
       isUser: false,
       timestamp: new Date(),
     }
@@ -39,18 +40,6 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const generateText = async (prompt: string): Promise<string> => {
-    // Mock API call - replace with actual Gemini API
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return `This is a mock response to: "${prompt}". In a real implementation, this would connect to Google Gemini API for text generation.`;
-  };
-
-  const generateImage = async (prompt: string): Promise<string> => {
-    // Mock image generation - replace with actual Gemini API
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return "https://picsum.photos/400/300?random=" + Date.now();
-  };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -71,29 +60,52 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
       // Check if user wants image generation
       const isImageRequest = currentInput.toLowerCase().includes("image") || 
                             currentInput.toLowerCase().includes("picture") ||
-                            currentInput.toLowerCase().includes("draw");
+                            currentInput.toLowerCase().includes("draw") ||
+                            currentInput.toLowerCase().includes("create") ||
+                            currentInput.toLowerCase().includes("generate");
 
-      let response: string;
-      let isImage = false;
+      console.log('Sending request to Gemini:', { message: currentInput, isImageRequest });
 
-      if (isImageRequest) {
-        response = await generateImage(currentInput);
-        isImage = true;
-      } else {
-        response = await generateText(currentInput);
+      const { data, error } = await supabase.functions.invoke('gemini-chat', {
+        body: {
+          message: currentInput,
+          isImageRequest: isImageRequest
+        }
+      });
+
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
       }
+
+      if (data.error) {
+        console.error('Gemini API error:', data.error);
+        throw new Error(data.error);
+      }
+
+      console.log('Received response from Gemini:', data);
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: response,
+        content: data.response,
         isUser: false,
         timestamp: new Date(),
-        isImage,
+        isImage: data.isImage || isImageRequest,
       };
 
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
+      console.error('Error getting AI response:', error);
       toast.error("Failed to get AI response. Please try again.");
+      
+      // Add error message to chat
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Sorry, I'm having trouble connecting right now. Please try again.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
