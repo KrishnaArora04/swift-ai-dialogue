@@ -1,13 +1,45 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState, useEffect } from "react";
+import { ChatInterface } from "@/components/ChatInterface";
+import { AuthModal } from "@/components/AuthModal";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
+import { SidebarInset } from "@/components/ui/sidebar";
 
 const Index = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // Mock authentication state - replace with Supabase auth
+  useEffect(() => {
+    // Check if user is authenticated
+    const checkAuth = () => {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+        setIsAuthenticated(true);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (!isAuthenticated) {
+    return <AuthModal onAuthSuccess={(userData) => {
+      setUser(userData);
+      setIsAuthenticated(true);
+      localStorage.setItem('user', JSON.stringify(userData));
+    }} />;
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <AppSidebar user={user} />
+        <SidebarInset>
+          <ChatInterface user={user} />
+        </SidebarInset>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 
